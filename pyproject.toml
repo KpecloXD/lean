@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lean"
+version = "0.1.0"
+description = "Будущая нейросеть"
+requires-python = ">=3.12"
+dependencies = [
+    "numpy>=2.0",
+    "tqdm>=4.66",
+    "torch>=2.4",
+    "tokenizers>=0.20",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.6",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100

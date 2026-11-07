@@ -1,0 +1,5 @@
+numpy>=2.0
+tqdm>=4.66
+torch>=2.4
+tokenizers>=0.20
+pyyaml>=6.0
