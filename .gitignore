@@ -21,15 +21,17 @@ checkpoints/
 *.pt
 
 # --- Данные ---
-# data/raw/*.jsonl и data/processed/* намеренно коммитятся:
-# репозиторий должен быть самодостаточным для воспроизведения.
+# GitHub не принимает файлы больше 100 МБ, а сырой датасет уже 300+ МБ.
+# В репозитории лежит только токенизатор; данные собираются скриптами.
+data/raw/*.jsonl
+data/processed/*.npz
 
 # --- Notebooks ---
 .ipynb_checkpoints/
 
 # --- IDE ---
-.vscode/
 .idea/
+.vscode/
 
 # --- OS ---
 Thumbs.db

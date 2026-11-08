@@ -1,9 +1,9 @@
-# src/lean/model.py — lean: decoder-only, GQA, RoPE, SwiGLU, KV-cache
+# src/lean/model.py
 import math
 
 import torch
+import torch.nn as nn
 import torch.nn.functional as F
-from torch import nn
 
 
 class RMSNorm(nn.Module):
@@ -27,7 +27,6 @@ def apply_rope(x, cos, sin):
     d = x.shape[-1] // 2
     x1, x2 = x[..., :d], x[..., d:]
     rot = torch.cat((-x2, x1), dim=-1)
-    # cos/sin: [S, head_dim//2] -> [1, 1, S, head_dim]
     c = torch.cat((cos, cos), dim=-1).unsqueeze(0).unsqueeze(0)
     s = torch.cat((sin, sin), dim=-1).unsqueeze(0).unsqueeze(0)
     return x * c + rot * s
@@ -60,18 +59,15 @@ class Attention(nn.Module):
 
         new_cache = (k, v)
 
-        # GQA: расширяем KV-головы
         k = k.unsqueeze(2).expand(B, c.kv_heads, c.n_rep, k.shape[2], c.head_dim).contiguous().reshape(B, c.n_heads, -1, c.head_dim)
         v = v.unsqueeze(2).expand(B, c.kv_heads, c.n_rep, v.shape[2], c.head_dim).contiguous().reshape(B, c.n_heads, -1, c.head_dim)
 
         scores = (q @ k.transpose(-2, -1)) / math.sqrt(c.head_dim)
         T = scores.shape[-1]
-        past = T - S
-        mask_value = torch.finfo(scores.dtype).min
 
-        # Causal: при cache=None past=0; при непустом кэше и S>1 сдвигаем диагональ.
-        # S==1 с непустым кэшем — единственный новый токен, маска не нужна.
+        past = T - S
         if cache is None or S > 1:
+            mask_value = torch.finfo(scores.dtype).min
             causal_mask = torch.triu(
                 torch.full((S, T), mask_value, device=x.device, dtype=scores.dtype),
                 diagonal=past + 1,
@@ -79,20 +75,11 @@ class Attention(nn.Module):
             scores = scores + causal_mask
 
         if padding_mask is not None:
-            # padding_mask: [B, T] (все ключи) или [B, S] (только новые токены).
-            # True = позицию-ключ нельзя видеть.
-            pm = padding_mask
-            if pm.shape[1] != T:
-                if pm.shape[1] == S:
-                    keep = torch.zeros(B, T - S, dtype=pm.dtype, device=pm.device)
-                    pm = torch.cat([keep, pm], dim=1)
-                else:
-                    raise ValueError(
-                        f"padding_mask должен быть [B,{T}] или [B,{S}], "
-                        f"получено {tuple(pm.shape)}"
-                    )
-            # finite min вместо -inf: полностью замаскированная строка не даёт NaN
-            scores = scores.masked_fill(pm.view(B, 1, 1, T), mask_value)
+            if padding_mask.shape[1] == S:
+                pm = padding_mask.view(B, 1, 1, S)
+            else:
+                pm = padding_mask.view(B, 1, 1, T)
+            scores = scores.masked_fill(pm, torch.finfo(scores.dtype).min)
 
         attn = self.drop(F.softmax(scores, dim=-1))
         out = (attn @ v).transpose(1, 2).reshape(B, S, c.d_model)
@@ -142,11 +129,6 @@ class Lean(nn.Module):
         self._init_weights()
 
     def _init_weights(self):
-        """GPT-2-style init: std=0.02, residual-проекции меньше в sqrt(2*n_layers).
-
-        Без этого nn.Embedding стартует с N(0,1), а вместе с tied lm_head это
-        даёт logits std ~ sqrt(d_model) и loss ~250 вместо ~ln(vocab).
-        """
         std = 0.02
         for p in self.parameters():
             if p.dim() == 2:
@@ -160,26 +142,18 @@ class Lean(nn.Module):
             nn.init.normal_(blk.ffn.down.weight, mean=0.0, std=residual_std)
 
     def forward(self, ids, cache=None, start_pos=0, padding_mask=None):
-        """
-        cache=None  -> обучение / полный прогон, кэш не нужен.
-        cache=[]    -> первый шаг генерации, кэш пустой.
-        cache=[...] -> последующие шаги генерации.
-        """
         S = ids.shape[1]
         x = self.emb(ids)
         cos = self.cos[start_pos:start_pos + S]
         sin = self.sin[start_pos:start_pos + S]
 
-        if cache is None:
-            # Обучение: кэш не копим
-            for blk in self.blocks:
-                x, _ = blk(x, cos, sin, None, padding_mask)
-            return self.lm_head(self.norm_f(x)), None
-
-        # Генерация: собираем кэш
+        # cache=None  -> считаем всю последовательность с нуля
+        # cache=[]    -> первый шаг генерации (прошлого ещё нет)
+        # cache=[...] -> продолжаем генерацию, в каждом элементе (k, v) слоя
         new_cache = []
         for i, blk in enumerate(self.blocks):
-            prev = cache[i] if len(cache) > 0 else None
-            x, lc = blk(x, cos, sin, prev, padding_mask)
-            new_cache.append(lc)
+            prev = cache[i] if cache else None
+            x, layer_cache = blk(x, cos, sin, prev, padding_mask)
+            new_cache.append(layer_cache)
+
         return self.lm_head(self.norm_f(x)), new_cache

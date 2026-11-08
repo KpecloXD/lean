@@ -1,24 +1,24 @@
 [build-system]
-requires = ["setuptools>=69", "wheel"]
+requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "lean"
 version = "0.1.0"
-description = "Будущая нейросеть"
-requires-python = ">=3.12"
+description = "Небольшая decoder-only LLM на PyTorch (GQA, RoPE, SwiGLU, KV-cache)"
+requires-python = ">=3.10"
 dependencies = [
-    "numpy>=2.0",
-    "tqdm>=4.66",
-    "torch>=2.4",
-    "tokenizers>=0.20",
+    "torch>=2.2",
+    "numpy>=1.26",
     "pyyaml>=6.0",
+    "tokenizers>=0.15",
+    "tqdm>=4.66",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0",
-    "ruff>=0.6",
+    "ruff>=0.5",
 ]
 
 [tool.setuptools.packages.find]
@@ -26,3 +26,11 @@ where = ["src"]
 
 [tool.ruff]
 line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

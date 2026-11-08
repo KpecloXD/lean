@@ -1,4 +1,3 @@
-# src/lean/config.py
 from dataclasses import dataclass
 
 import yaml
@@ -46,19 +45,15 @@ def load_config(path, tokenizer_path=None):
     m = ModelConfig(**raw["model"])
     t = TrainingConfig(**raw["training"])
 
-    # архитектура
     assert m.d_model % m.n_heads == 0, "d_model должно делиться на n_heads"
     assert m.n_heads % m.kv_heads == 0, "n_heads должно делиться на kv_heads"
     assert m.d_model % 2 == 0, "d_model должно быть чётным (для RoPE)"
     assert m.max_seq > 0, "max_seq должен быть > 0"
 
-    # тренировка
     assert t.batch_size > 0, "batch_size должен быть > 0"
     assert t.lr > 0, "lr должен быть > 0"
-    assert t.grad_clip > 0, "grad_clip должен быть > 0"
-    assert 0.0 <= t.val_fraction < 1.0, "val_fraction должен быть в [0, 1)"
+    assert 0 <= t.val_fraction < 1, "val_fraction должен быть в [0, 1)"
 
-    # сверка vocab_size с токенизатором
     if tokenizer_path is not None:
         from lean.tokenizer import LeanTokenizer
         real = LeanTokenizer(tokenizer_path).vocab_size

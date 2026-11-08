@@ -1,5 +1,3 @@
-# src/lean/tokenizer.py
-"""Токенизатор lean: ByteLevel-BPE + упаковка диалогов в ids с loss-маской."""
 import json
 from pathlib import Path
 
@@ -28,7 +26,6 @@ def train_tokenizer(paths, vocab_size, save_path):
     )
     tok.train_from_iterator(iter_corpus(paths), trainer)
 
-    # гарантия, что id спецтокенов совпадают с константами
     for i, s in enumerate(SPECIALS):
         got = tok.token_to_id(s)
         assert got == i, f"спецтокен {s} получил id {got}, ожидали {i}"
@@ -42,7 +39,6 @@ def train_tokenizer(paths, vocab_size, save_path):
 class LeanTokenizer:
     def __init__(self, path):
         self.tok = Tokenizer.from_file(str(path))
-        # sanity: спецтокены на месте
         for i, s in enumerate(SPECIALS):
             assert self.tok.token_to_id(s) == i, f"{s} не на id {i}"
 
@@ -57,10 +53,6 @@ class LeanTokenizer:
         return self.tok.decode(ids, skip_special_tokens=skip_special)
 
     def dialogue_to_ids(self, messages):
-        """Диалог -> (ids, loss_mask).
-        mask=1 только на content ассистента + <end>. <assistant> head = 0,
-        чтобы модель не училась предсказывать токен, который подаёт пользователь.
-        """
         ids, mask = [], []
         for m in messages:
             is_asst = m["role"] == "assistant"

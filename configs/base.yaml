@@ -1,19 +1,19 @@
 model:
-  vocab_size: 10795
-  d_model: 256
-  n_layers: 4
+  vocab_size: 10795    # (или сколько выдал токенизатор)
+  d_model: 512
+  n_layers: 6
   n_heads: 4
   kv_heads: 2
   ffn_hidden: 512
   dropout: 0.1
-  max_seq: 256
+  max_seq: 512
 
 training:
-  batch_size: 4
+  batch_size: 1
   lr: 0.0003
-  weight_decay: 0.01
-  max_steps: 200
+  weight_decay: 0.1
+  max_steps: 1000
   grad_clip: 1.0
-  eval_every: 20
-  warmup_steps: 20
+  eval_every: 10
+  warmup_steps: 5
   val_fraction: 0.1
